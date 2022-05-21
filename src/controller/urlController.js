@@ -1,19 +1,34 @@
 const UrlModel = require("../models/urlModel")
-const validUrl = require('valid-url')
+const validurl = require('valid-url')
 const shortid = require('shortid')
-const redis = require("redis");
-
+const redis = require('redis')
 
 
 const { promisify } = require("util");
 
+// const url_valid = function(url){
+//     let regex = /^(?:http(s)?:\/\/)?[\w.-]+(?:\.[\w\.-]+)+[\w\-\._~:/?#[\]@!\$&'\(\)\*\+,;=.]+$/gm
+//     console.log(regex.test(url.trim()))
+//     return regex.test(url.trim())
+// }
+
+//URL VALIDATION BY REGEX
+const validateurl = (url) => {
+  return String(url.trim()).match(
+    //(ftp|http|https):\/\/(\w+:{0,1}\w*@)?(\S+)(:[0-9]+)?(\/|\/([\w#!:.?+=&%@!\-\/]))?/
+    //^(?:http(s)?:\/\/)?[\w.-]+(?:\.[\w\.-]+)+[\w\-\._~:/?#[\]@!\$&'\(\)\*\+,;=.]+$/gm
+    /^(http(s)?:\/\/)?(www.)?([a-zA-Z0-9])+([\-\.]{1}[a-zA-Z0-9]+)\.[a-zA-Z]{2,5}(:[0-9]{1,5})?(\/[^\s])?/gm
+  )
+};
+
+
 //Connect to redis
 const redisClient = redis.createClient(
-  13313,
-  "redis-13313.c301.ap-south-1-1.ec2.cloud.redislabs.com",
+  10294,
+  "redis-10294.c212.ap-south-1-1.ec2.cloud.redislabs.com",
   { no_ready_check: true }
 );
-redisClient.auth("WVKxWfZaIOYhHXKzhWVRe6vdPKQbaH7n", function (err) {
+redisClient.auth("fot70eqx5C1SPuCDwTXWPaZEcKegIkfp", function (err) {
   if (err) throw err;
 });
 
@@ -28,116 +43,114 @@ redisClient.on("connect", async function () {
 
 //Connection setup for redis
 
-/*const SET_ASYNC = promisify(redisClient.SET).bind(redisClient);
-const GET_ASYNC = promisify(redisClient.GET).bind(redisClient);
-
-
-const createAuthor = async function (req, res) {
-  let data = req.body;
-  let authorCreated = await authorModel.create(data);
-  res.send({ data: authorCreated });
-};
-
-const fetchAuthorProfile = async function (req, res) {
-  let cahcedProfileData = await GET_ASYNC(`${req.params.authorId}`)
-  if(cahcedProfileData) {
-    res.send(cahcedProfileData)
-  } else {
-    let profile = await authorModel.findById(req.params.authorId);
-    await SET_ASYNC(`${req.params.authorId}`, JSON.stringify(profile))
-    res.send({ data: profile });
-  }
-
-};
-
-module.exports.createAuthor = createAuthor;
-module.exports.fetchAuthorProfile = fetchAuthorProfile;*/
-
 const SET_ASYNC = promisify(redisClient.SET).bind(redisClient);
 const GET_ASYNC = promisify(redisClient.GET).bind(redisClient);
-
-const getUrl = async (req,res) => {
-    try
-    {
-        let urlCode = req.params.urlCode
-        //caching
-        let cachedLongUrl = await GET_ASYNC(`${urlCode}`)
-
-        //if key name urlCode is present in cache memory
-        if(cachedLongUrl){
-            return res.status(300).redirect(cachedLongUrl)
-        }
-        
-        //key urlcode is not present in cache memory
-        const url = await UrlModel.findOne({urlCode:urlCode})
-        
-        if(!url){
-            return res.status(404).send({status:false , message: " no URL found"})
-        }
-        
-        //using set to assign new key value pair in cache
-        await SET_ASYNC(`${urlCode}`,JSON.stringify(url.longUrl))
-
-
-        return res.status(300).redirect({status:true , data:url.longUrl})
-    }
-    
-    catch(err){
-        return res.status(500).send({status:false ,message: err.message})
-    }
-}
-
-
-
-
 
 
 
 
 const urlShortner = async (req, res) => {
-    try {
-        let longUrl = req.body.longUrl
-        if (!longUrl || !longUrl.trim()) return res.status(400).send({ status: false, message: "longUrl is required" });
+  try {
+    let longUrl = req.body.longUrl
 
-        const url_valid = function (url) {
-            let regex = /^(?:(?:(?:https?|ftp):)?\/\/)(?:\S+(?::\S*)?@)?(?:(?!(?:10|127)(?:\.\d{1,3}){3})(?!(?:169\.254|192\.168)(?:\.\d{1,3}){2})(?!172\.(?:1[6-9]|2\d|3[0-1])(?:\.\d{1,3}){2})(?:[1-9]\d?|1\d\d|2[01]\d|22[0-3])(?:\.(?:1?\d{1,2}|2[0-4]\d|25[0-5])){2}(?:\.(?:[1-9]\d?|1\d\d|2[0-4]\d|25[0-4]))|(?:(?:[a-z\u00a1-\uffff0-9]-*)*[a-z\u00a1-\uffff0-9]+)(?:\.(?:[a-z\u00a1-\uffff0-9]-*)*[a-z\u00a1-\uffff0-9]+)*(?:\.(?:[a-z\u00a1-\uffff]{2,})))(?::\d{2,5})?(?:[/?#]\S*)?$/i
-            return regex.test(url)
-        }
+    if (Object.keys(req.body).length == 0 || !longUrl.trim()) {
+      return res.status(400).send({ status: false, message: "please enter a URL" })
+    }
 
-        if (!url_valid(longUrl)) return res.status(400).send({ status: false, message: "Invalid longUrl  link" });
+    //url validation
+    // let isValidUrl = "((http|https)://)(www.)?[a-zA-Z0-9@:%._\\+~#?&//=]{2,256}\\.[a-z]{2,6}\\b([-a-zA-Z0-9@:%._\\+~#?&//=]*)"
 
-        const isUrlPresent = await UrlModel.findOne({ longUrl })
+    if (!validateurl(longUrl)) {
+      return res.status(400).send({ status: false, message: "please enter a valid URL" })
+    }
 
-        //if url is already present
-        if (isUrlPresent) {
-            return res.status(200).send({ status: true, data: isUrlPresent })
-        }
+    //check in cache memory
+    const cachedUrl = await GET_ASYNC(`${longUrl}`)
+    if (cachedUrl) {
+      return res.status(200).send({ status: true, message:"data from cache",data: JSON.parse(cachedUrl) })
+    }
 
 
-        //base url
-        const baseUrl = 'http://localhost:3000'
+    //find longUrl is present in our db
+    const isUrlPresent = await UrlModel.findOne({ longUrl }).select({ createdAt: 0, updatedAt: 0, __v: 0 })
 
-        //url code generation
-        const urlCode = shortid.generate()
-        console.log(urlCode)
+    //if url is already present
+    if (isUrlPresent) {
+      await SET_ASYNC(`${longUrl}`, JSON.stringify(isUrlPresent))
+      return res.status(200).send({ status: true,message:"url already shortened", data: isUrlPresent })
+    }
 
-        const shortUrl = baseUrl + '/' + urlCode
-        console.log(shortUrl)
+    //base url
+    const baseUrl = 'http://localhost:3000'
+    if (!validurl.isUri(baseUrl)) {
+      return res.status(400).send({ message: "invalid baseurl" })
+    }
 
-        const url = await UrlModel.create({ longUrl: longUrl, shortUrl: shortUrl, urlCode: urlCode })
-        return res.status(201).send({ status: true, message: "successs", data: url })
+    //url code generation
+    const urlCode = shortid.generate().toLowerCase()
+    console.log(urlCode)
+
+    //shortUrl
+    const shortUrl = baseUrl + '/' + urlCode
+    console.log(shortUrl)
+
+    //creating entry in database
+    const url = await UrlModel.create({ longUrl: longUrl, shortUrl: shortUrl, urlCode: urlCode })
+
+    //setting data in cache
+    await SET_ASYNC(`${longUrl}`, JSON.stringify({ longUrl: longUrl, shortUrl: shortUrl, urlCode: urlCode }))
+
+    return res.status(201).send({ status: true, data: url })
+  }
+  catch (err) {
+    return res.status(500).send({ status: false, message: err.message })
+  }
+}
+
+const getUrl = async (req, res) => {
+  try {
+    let urlCode = req.params.urlCode
+    if(!urlCode.trim()){
+      return res.status(400).send({ status: false, message: "urlcode is missing" })
 
     }
-    catch (err) {
-        return res.status(500).send({ status: false, message: err.message })
+    if (!shortid.isValid(urlCode)) {
+      return res.status(400).send({ status: false, message: `${urlCode} is invalid urlcode` })
     }
+
+    if (Object.keys(req.query).length > 0) {
+      return res.status(400).send({ status: false, message: "oops!!! kya kar rha hai bhai tu query deke" })
+    }
+    //caching
+    let cachedLongUrl = await GET_ASYNC(`${urlCode}`)
+    console.log(cachedLongUrl)
+
+    //if key name urlCode is present in cache memory
+    if (cachedLongUrl) {
+      return res.status(302).redirect(JSON.parse(cachedLongUrl))
+    }
+
+    //key urlcode is not present in cache memory
+    const url = await UrlModel.findOne({ urlCode: urlCode }).select({ createdAt: 0, updatedAt: 0, __v: 0 })
+
+
+    if (!url) {
+      return res.status(404).send({ status: false, message: " no URL found" })
+    }
+
+    //using set to assign new key value pair in cache
+
+    await SET_ASYNC(`${urlCode}`, JSON.stringify(url.longUrl))
+
+
+    return res.status(302).redirect(url.longUrl)
+  }
+
+  catch (err) {
+    return res.status(500).send({ status: false, message: err.message })
+  }
 }
 
 
 
-  
 module.exports = { urlShortner, getUrl }
-
-
-
-
